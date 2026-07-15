@@ -1,12 +1,14 @@
 ;; ============================================================================
-;; CONTOUR POLYLINE DATA EXTRACTOR - DISPLAY IN AUTOCAD
+;; CONTOUR POLYLINE DATA EXTRACTOR - DISPLAY & SAVE
 ;; AutoLISP Script for AutoCAD
-;; Purpose: Extract polyline points at specified intervals and display in command line
+;; Purpose: Extract polyline points at specified intervals
+;; Display in command line AND save to text file
 ;; Output: Chainage, X, Y, Z
 ;; ============================================================================
 
 (defun c:EXTRACTPOLY (/ ss ename ent coords interval i pt1 pt2 
-                        segment_dist num_steps j ratio x y z chainage)
+                        segment_dist num_steps j ratio x y z chainage
+                        filename fp line total_chainage)
   
   (princ "\n")
   (princ "========================================\n")
@@ -37,31 +39,61 @@
     )
   )
   
+  ;; Get save location
+  (setq filename (getfiled "Save Output As" "" "txt" 1))
+  
+  (if (not filename)
+    (progn
+      (princ "File save cancelled.\n")
+      (exit)
+    )
+  )
+  
+  ;; Open file
+  (setq fp (open filename "w"))
+  
+  (if (not fp)
+    (progn
+      (princ "Cannot create file.\n")
+      (exit)
+    )
+  )
+  
   ;; Get coordinates
   (setq coords (get-coords ename))
   
   (if (not coords)
     (progn
       (princ "Error extracting polyline.\n")
+      (close fp)
       (exit)
     )
   )
   
-  ;; Display header
+  ;; Display and write header
   (princ "\n")
   (princ "========================================\n")
+  (write-line "========================================" fp)
+  
   (princ "EXTRACTED DATA\n")
+  (write-line "EXTRACTED DATA" fp)
+  
   (princ "========================================\n")
+  (write-line "========================================" fp)
+  
   (princ "Chainage(m) | X        | Y        | Z\n")
+  (write-line "Chainage(m) | X        | Y        | Z" fp)
+  
   (princ "----------------------------------------\n")
+  (write-line "----------------------------------------" fp)
   
   ;; Initialize chainage
   (setq chainage 0.0)
   (setq i 0)
   
-  ;; Display first point
+  ;; Display and write first point
   (setq pt1 (nth 0 coords))
-  (display-point chainage pt1)
+  (display-and-save chainage pt1 fp)
   
   ;; Process segments
   (while (< i (- (length coords) 1))
@@ -82,7 +114,7 @@
       (setq y (+ (cadr pt1) (* ratio (- (cadr pt2) (cadr pt1)))))
       (setq z (+ (caddr pt1) (* ratio (- (caddr pt2) (caddr pt1)))))
       
-      (display-point (+ chainage (* j interval)) (list x y z))
+      (display-and-save (+ chainage (* j interval)) (list x y z) fp)
       
       (setq j (+ j 1))
     )
@@ -93,15 +125,27 @@
     (setq i (+ i 1))
   )
   
-  ;; Display last point
+  ;; Display and write last point
   (setq pt2 (nth (- (length coords) 1) coords))
-  (display-point chainage pt2)
+  (display-and-save chainage pt2 fp)
   
-  ;; Display summary
+  ;; Display and write summary
+  (setq total_chainage chainage)
+  
   (princ "----------------------------------------\n")
-  (princ (strcat "Total Chainage: " (rtos chainage 2 3) " m\n"))
+  (write-line "----------------------------------------" fp)
+  
+  (princ (strcat "Total Chainage: " (rtos total_chainage 2 3) " m\n"))
+  (write-line (strcat "Total Chainage: " (rtos total_chainage 2 3) " m") fp)
+  
   (princ "========================================\n")
-  (princ "\nExtraction complete!\n")
+  (write-line "========================================" fp)
+  
+  ;; Close file
+  (close fp)
+  
+  (princ (strcat "\nFile saved: " filename "\n"))
+  (princ "Extraction complete!\n")
   (princ)
 )
 
@@ -181,8 +225,8 @@
   (sqrt (+ (* dx dx) (* dy dy) (* dz dz)))
 )
 
-;; Display a point
-(defun display-point (chainage pt / x y z line)
+;; Display a point in command line and save to file
+(defun display-and-save (chainage pt fp / x y z line)
   (setq x (car pt))
   (setq y (cadr pt))
   (setq z (caddr pt))
@@ -191,12 +235,24 @@
     (rtos chainage 2 3) " | "
     (rtos x 2 3) " | "
     (rtos y 2 3) " | "
-    (rtos z 2 3) "\n"
+    (rtos z 2 3)
   ))
   
-  (princ line)
+  (princ (strcat line "\n"))
+  (write-line line fp)
+)
+
+;; Write line to file
+(defun write-line (text fp / i)
+  (setq i 0)
+  (while (< i (strlen text))
+    (write-char (substr text (+ i 1) 1) fp)
+    (setq i (+ i 1))
+  )
+  (write-char "\n" fp)
 )
 
 (princ "\n>>> POLYLINE EXTRACTOR LOADED <<<\n")
 (princ "Command: EXTRACTPOLY\n")
+(princ "This will display output in AutoCAD and save to a text file\n")
 (princ)
